@@ -192,7 +192,7 @@ func (m *ErrorManager) CreateNewErrorWithAST(err ErrorType, ast *AST, extraComme
 
 	if m.shouldReport(nil, lastError, newErr) || (m.aggresive && m.asIs) {
 		if m.asIs {
-			m.printError(newErr);
+			m.printError(newErr)
 		} else if m.cm {
 			*m.getPossibleErrorList() = append(*m.getPossibleErrorList(), newErr)
 			m.lastCheckedError = newErr
@@ -375,14 +375,14 @@ func (m *ErrorManager) getErrors(errs *[]*ParserError) string {
 		if err.Warning {
 			errMsg += fmt.Sprintf("%s:%d:%d: warning E20%d: %s\n", m.fileName, err.Line, err.Col, err.Id, err.Error)
 		} else {
-			errMsg += fmt.Sprintf("%s:%d:%d: error $50%d: %s\n", m.fileName, err.Line, err.Col, err.Id, err.Error)
+			errMsg += fmt.Sprintf("%s:%d:%d: error E50%d: %s\n", m.fileName, err.Line, err.Col, err.Id, err.Error)
 		}
 		errMsg += fmt.Sprintf("\t%s\n\t", m.getLine(err.Line))
 
 		for i := 0; i < int(err.Col)-1; i++ {
 			errMsg += " "
 		}
-		errMsg += "^\n"
+		errMsg += "\t^\n"
 	}
 	return errMsg
 }
@@ -399,7 +399,7 @@ func (m *ErrorManager) printError(err *ParserError) {
 	for i := 0; i < int(err.Col)-1; i++ {
 		fmt.Print(" ")
 	}
-	fmt.Println("^")
+	fmt.Println("\t^")
 }
 
 // Check if the error is in the given error list.
