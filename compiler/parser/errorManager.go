@@ -136,92 +136,236 @@ func (m *ErrorManager) PrintErrors() {
 
 // GetErrorCount returns the number of solid errors (not unfiltered).
 func (m *ErrorManager) GetErrorCount() uint64 {
-	return 0
+	return uint64(len(m.errors))
 }
 
 // GetWarningCount returns the number of warnings.
 func (m *ErrorManager) GetWarningCount() uint64 {
-	return 0
+	return uint64(len(m.warnings))
 }
 
 // GetUnfilteredErrorCount returns the number of all errors.
 func (m *ErrorManager) GetUnfilteredErrorCount() uint64 {
-	return 0
+	return uint64(len(m.unfilteredErrors))
 }
 
 // CreateNewErrorWithToken creates a new error with a token.
 func (m *ErrorManager) CreateNewErrorWithToken(err ErrorType, token *tokenizer.TokenEntity, extraComments string) int {
+	kp := m.getErrorByID(err)
+	newErr := newParserErrorFromToken(kp, token, extraComments)
+	var lastError *ParserError
+	if m.cm {
+		lastError = m.lastCheckedError
+	} else {
+		lastError = m.lastError
+	}
+
+	if m.shouldReport(nil, lastError, newErr) || (m.aggresive && m.asIs) {
+		if m.asIs {
+			m.printError(newErr)
+		} else if m.cm {
+			*m.getPossibleErrorList() = append(*m.getPossibleErrorList(), newErr)
+			m.lastCheckedError = newErr
+			return 1
+		}
+		m.haveFoundErr = true
+		m.errors = append(m.errors, newErr)
+		m.unfilteredErrors = append(m.unfilteredErrors, newErr)
+		m.lastError = newErr
+		return 1
+	} else {
+		m.unfilteredErrors = append(m.unfilteredErrors, newErr)
+	}
 	return 0
 }
 
 // CreateNewErrorWithAST creates a new error with an AST.
 func (m *ErrorManager) CreateNewErrorWithAST(err ErrorType, ast *AST, extraComments string) int {
+	kp := m.getErrorByID(err)
+	newErr := newParserErrorLineAndCol(kp, ast.Line, ast.Col, extraComments, false)
+	var lastError *ParserError
+	if m.cm {
+		lastError = m.lastCheckedError
+	} else {
+		lastError = m.lastError
+	}
+
+	if m.shouldReport(nil, lastError, newErr) || (m.aggresive && m.asIs) {
+		if m.asIs {
+			m.printError(newErr);
+		} else if m.cm {
+			*m.getPossibleErrorList() = append(*m.getPossibleErrorList(), newErr)
+			m.lastCheckedError = newErr
+			return 1
+		}
+		m.haveFoundErr = true
+		m.errors = append(m.errors, newErr)
+		m.unfilteredErrors = append(m.unfilteredErrors, newErr)
+		m.lastError = newErr
+		return 1
+	} else {
+		m.unfilteredErrors = append(m.unfilteredErrors, newErr)
+	}
+
 	return 0
 }
 
 // CreateNewErrorWithLine creates a new error with the given line and column numbers.
-func (m *ErrorManager) CreateNewErrorWithLineAndCol(err ErrorType, line, col, uint, extraComments string) {
+func (m *ErrorManager) CreateNewErrorWithLineAndCol(err ErrorType, line, col uint, extraComments string) {
+	kp := m.getErrorByID(err)
+	newErr := newParserErrorLineAndCol(kp, line, col, extraComments, false)
+	var lastError *ParserError
+	if m.cm {
+		lastError = m.lastCheckedError
+	} else {
+		lastError = m.lastError
+	}
 
+	if m.shouldReport(nil, lastError, newErr) || (m.aggresive && m.asIs) {
+		if m.asIs {
+			m.printError(newErr)
+		} else if m.cm {
+			*m.getPossibleErrorList() = append(*m.getPossibleErrorList(), newErr)
+			m.lastCheckedError = newErr
+			return
+		}
+		m.haveFoundErr = true
+		m.errors = append(m.errors, newErr)
+		m.unfilteredErrors = append(m.unfilteredErrors, newErr)
+		m.lastError = newErr
+	} else {
+		m.unfilteredErrors = append(m.unfilteredErrors, newErr)
+	}
 }
 
 // CreateNewWarningWithLineAndCol creates a new warning with the given line and column numbers.
-func (m *ErrorManager) CreateNewWarningWithLineAndCol(err ErrorType, line, col, uint, extraComments string) {
+func (m *ErrorManager) CreateNewWarningWithLineAndCol(err ErrorType, line, col uint, extraComments string) {
+	kp := m.getErrorByID(err)
+	newWrn := newParserErrorLineAndCol(kp, line, col, extraComments, true)
+	var lastWrn *ParserError
+	if len(m.warnings) > 0 {
+		lastWrn = m.warnings[len(m.warnings)-1]
+	} else {
+		if m.cm {
+			lastWrn = m.lastCheckedError
+		} else {
+			lastWrn = m.lastError
+		}
+	}
 
+	if len(m.warnings) == 0 || m.shouldReportWarning(nil, lastWrn, newWrn) {
+		if m.asIs {
+			m.printError(newWrn)
+		}
+		m.warnings = append(m.warnings, newWrn)
+	}
 }
 
 // CreateNewWarningWithAST creates a new warning with the given AST.
 func (m *ErrorManager) CreateNewWarningWithAST(err ErrorType, ast *AST, extraComments string) {
-
+	m.CreateNewWarningWithLineAndCol(err, ast.Line, ast.Col, extraComments)
 }
 
-// HasErrors checks whether the manager has any errors or not.
-func (m *ErrorManager) HasErrors() bool {
+// hasErrors checks whether the manager has any errors or not.
+func (m *ErrorManager) hasErrors() bool {
+	return m.haveFoundErr && len(m.unfilteredErrors) != 0
+}
+
+// hasWarnings checks whether the manager has any warnings or not.
+func (m *ErrorManager) hasWarnings() bool {
 	return false
 }
 
-// HasWarnings checks whether the manager has any warnings or not.
-func (m *ErrorManager) HasWarnings() bool {
-	return false
+// enableErrorCheckMode enables error check mode.
+func (m *ErrorManager) enableErrorCheckMode() {
+	m.cm = true
+	m.addPossbleErrorList()
 }
 
-// EnableErrorCheckMode enables error check mode.
-func (m *ErrorManager) EnableErrorCheckMode() {
-
+func (m *ErrorManager) pass() {
+	m.lastCheckedError = nil
+	m.removePossibleErrorList()
 }
 
-func (m *ErrorManager) Pass() {
+func (m *ErrorManager) fail() {
+	if len(m.possibleErrors) > 0 {
+		for _, err := range *m.getPossibleErrorList() {
+			if m.shouldReport(nil, m.lastError, err) {
+				m.errors = append(m.errors, err)
+				m.lastError = err
+				m.unfilteredErrors = append(m.unfilteredErrors, err)
+			}
+		}
 
+		if m.teCurser <= 0 {
+			m.lastError = m.lastCheckedError
+			m.haveFoundErr = true
+		}
+	}
+
+	m.lastCheckedError = nil
+	m.removePossibleErrorList()
 }
 
-func (m *ErrorManager) Fail() {
-
-}
-
-// GetLine returns the corresponding line.
-func (m *ErrorManager) GetLine(line uint) string {
-	return ""
+// getLine returns the corresponding line.
+func (m *ErrorManager) getLine(line uint) string {
+	if line-1 >= uint(len(m.lines)) {
+		return "EOF"
+	} else {
+		return m.lines[line-1]
+	}
 }
 
 // getErrorByID gets the specified error type.
 func (m *ErrorManager) getErrorByID(err ErrorType) *KeyPair {
+	for _, i := range predefinedErrs {
+		if i.Key == err {
+			return &i
+		}
+	}
 	return nil
 }
 
-func (m *ErrorManager) getPossibleErrorList() []*ParserError {
-	return nil
+// getPossibleErrorList returns the last element of possibleErrors.
+func (m *ErrorManager) getPossibleErrorList() *[]*ParserError {
+	return &m.possibleErrors[len(m.possibleErrors)-1]
 }
 
-func (m *ErrorManager) addPossibleError() {
-
+// addPossbleErrorList adds a new element (a list of ParserErrors) to possibleErrors.
+func (m *ErrorManager) addPossbleErrorList() {
+	m.possibleErrors = append(m.possibleErrors, []*ParserError{})
+	m.teCurser++
 }
 
-func (m *ErrorManager) removePossibleError() {
-
+// removePossibleErrorList removes the last element of possibleErrors.
+func (m *ErrorManager) removePossibleErrorList() {
+	if len(m.possibleErrors) != 0 {
+		m.possibleErrors = m.possibleErrors[:len(m.possibleErrors)-1]
+		m.teCurser--
+		if m.teCurser < 0 {
+			m.cm = false
+		}
+	}
 }
 
-// shouldReport checks if the given error should be reporeted or not.
+// shouldReport checks if the given error should be reported or not.
 func (m *ErrorManager) shouldReport(token *tokenizer.TokenEntity, lastErr *ParserError, e *ParserError) bool {
+	if m.lastError.Error != e.Error && !m.hasError(&m.errors, e) && !(m.lastError.Line == e.Line && m.lastError.Col == e.Col) {
+		if token != nil &&
+			!(token.IsSingle() ||
+				token.GetID() == tokenizer.CharLiteral ||
+				token.GetID() == tokenizer.StringLiteral ||
+				token.GetID() == tokenizer.IntegerLiteral) {
+			return m.lastError.Line-e.Line != 1
+		}
+		return true
+	}
 	return false
+}
+
+// shouldReportWarning checks if the given warning should be reported or not. (exactly the same except for the name)
+func (m *ErrorManager) shouldReportWarning(token *tokenizer.TokenEntity, lastErr *ParserError, err *ParserError) bool {
+	return m.shouldReport(token, lastErr, err)
 }
 
 // getErrors combines errors and return error message as one giant error message.
@@ -233,12 +377,12 @@ func (m *ErrorManager) getErrors(errs *[]*ParserError) string {
 		} else {
 			errMsg += fmt.Sprintf("%s:%d:%d: error $50%d: %s\n", m.fileName, err.Line, err.Col, err.Id, err.Error)
 		}
-		errMsg += fmt.Sprintf("\t%s\n\t", m.GetLine(err.Line))
+		errMsg += fmt.Sprintf("\t%s\n\t", m.getLine(err.Line))
 
 		for i := 0; i < int(err.Col)-1; i++ {
 			errMsg += " "
 		}
-		errMsg += "^"
+		errMsg += "^\n"
 	}
 	return errMsg
 }
@@ -250,7 +394,7 @@ func (m *ErrorManager) printError(err *ParserError) {
 	} else {
 		fmt.Printf("%s:%d:%d: error $50%d: %s\n", m.fileName, err.Line, err.Col, err.Id, err.Error)
 	}
-	fmt.Printf("\t%s\n\t", m.GetLine(err.Line))
+	fmt.Printf("\t%s\n\t", m.getLine(err.Line))
 
 	for i := 0; i < int(err.Col)-1; i++ {
 		fmt.Print(" ")
@@ -260,10 +404,11 @@ func (m *ErrorManager) printError(err *ParserError) {
 
 // Check if the error is in the given error list.
 func (m *ErrorManager) hasError(errs *[]*ParserError, e *ParserError) bool {
-	return false
-}
-
-func (m *ErrorManager) shouldReportWarning(token *tokenizer.TokenEntity, lastErr *ParserError, err *ParserError) bool {
+	for _, err := range *errs {
+		if err.Error == e.Error {
+			return true
+		}
+	}
 	return false
 }
 
@@ -276,7 +421,7 @@ func newKeyPair(key ErrorType, value string) *KeyPair {
 }
 
 // newParserErrorLineAndCol creates a new ParserError with the given line and column numbers.
-func newParserErrorLineAndCol(err KeyPair, l, c uint, addon string, warning bool) *ParserError {
+func newParserErrorLineAndCol(err *KeyPair, l, c uint, addon string, warning bool) *ParserError {
 	msg := err.Value
 	if addon != "" {
 		msg += ": " + addon
@@ -291,7 +436,7 @@ func newParserErrorLineAndCol(err KeyPair, l, c uint, addon string, warning bool
 }
 
 // newParserErrorFromToken creates a new ParserError with the line and column numbers taken from the given token.
-func newParserErrorFromToken(err KeyPair, token *tokenizer.TokenEntity, addon string) *ParserError {
+func newParserErrorFromToken(err *KeyPair, token *tokenizer.TokenEntity, addon string) *ParserError {
 	msg := err.Value
 	if addon != "" {
 		msg += ": " + addon
