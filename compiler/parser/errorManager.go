@@ -422,10 +422,7 @@ func newKeyPair(key ErrorType, value string) *KeyPair {
 
 // newParserErrorLineAndCol creates a new ParserError with the given line and column numbers.
 func newParserErrorLineAndCol(err *KeyPair, l, c uint, addon string, warning bool) *ParserError {
-	msg := err.Value
-	if addon != "" {
-		msg += ": " + addon
-	}
+	msg := err.Value + addon
 	return &ParserError{
 		Id:      err.Key,
 		Error:   msg,
@@ -437,10 +434,7 @@ func newParserErrorLineAndCol(err *KeyPair, l, c uint, addon string, warning boo
 
 // newParserErrorFromToken creates a new ParserError with the line and column numbers taken from the given token.
 func newParserErrorFromToken(err *KeyPair, token *tokenizer.TokenEntity, addon string) *ParserError {
-	msg := err.Value
-	if addon != "" {
-		msg += ": " + addon
-	}
+	msg := err.Value + addon
 	return &ParserError{
 		Id:      err.Key,
 		Error:   msg,
