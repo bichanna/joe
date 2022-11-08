@@ -1,10 +1,6 @@
-package parser
+package compiler
 
-import (
-	"fmt"
-
-	"github.com/bichanna/joe/compiler/tokenizer"
-)
+import "fmt"
 
 type ErrorType int
 
@@ -150,7 +146,7 @@ func (m *ErrorManager) GetUnfilteredErrorCount() uint64 {
 }
 
 // CreateNewErrorWithToken creates a new error with a token.
-func (m *ErrorManager) CreateNewErrorWithToken(err ErrorType, token *tokenizer.TokenEntity, extraComments string) int {
+func (m *ErrorManager) CreateNewErrorWithToken(err ErrorType, token *TokenEntity, extraComments string) int {
 	kp := m.getErrorByID(err)
 	newErr := newParserErrorFromToken(kp, token, extraComments)
 	var lastError *ParserError
@@ -349,13 +345,13 @@ func (m *ErrorManager) removePossibleErrorList() {
 }
 
 // shouldReport checks if the given error should be reported or not.
-func (m *ErrorManager) shouldReport(token *tokenizer.TokenEntity, lastErr *ParserError, e *ParserError) bool {
+func (m *ErrorManager) shouldReport(token *TokenEntity, lastErr *ParserError, e *ParserError) bool {
 	if m.lastError.Error != e.Error && !m.hasError(&m.errors, e) && !(m.lastError.Line == e.Line && m.lastError.Col == e.Col) {
 		if token != nil &&
 			!(token.IsSingle() ||
-				token.GetID() == tokenizer.CharLiteral ||
-				token.GetID() == tokenizer.StringLiteral ||
-				token.GetID() == tokenizer.IntegerLiteral) {
+				token.GetID() == CharLiteral ||
+				token.GetID() == StringLiteral ||
+				token.GetID() == IntegerLiteral) {
 			return m.lastError.Line-e.Line != 1
 		}
 		return true
@@ -364,7 +360,7 @@ func (m *ErrorManager) shouldReport(token *tokenizer.TokenEntity, lastErr *Parse
 }
 
 // shouldReportWarning checks if the given warning should be reported or not. (exactly the same except for the name)
-func (m *ErrorManager) shouldReportWarning(token *tokenizer.TokenEntity, lastErr *ParserError, err *ParserError) bool {
+func (m *ErrorManager) shouldReportWarning(token *TokenEntity, lastErr *ParserError, err *ParserError) bool {
 	return m.shouldReport(token, lastErr, err)
 }
 
@@ -382,7 +378,7 @@ func (m *ErrorManager) getErrors(errs *[]*ParserError) string {
 		for i := 0; i < int(err.Col)-1; i++ {
 			errMsg += " "
 		}
-		errMsg += "\t^\n"
+		errMsg += "^\n"
 	}
 	return errMsg
 }
@@ -399,7 +395,7 @@ func (m *ErrorManager) printError(err *ParserError) {
 	for i := 0; i < int(err.Col)-1; i++ {
 		fmt.Print(" ")
 	}
-	fmt.Println("\t^")
+	fmt.Println("^")
 }
 
 // Check if the error is in the given error list.
@@ -433,7 +429,7 @@ func newParserErrorLineAndCol(err *KeyPair, l, c uint, addon string, warning boo
 }
 
 // newParserErrorFromToken creates a new ParserError with the line and column numbers taken from the given token.
-func newParserErrorFromToken(err *KeyPair, token *tokenizer.TokenEntity, addon string) *ParserError {
+func newParserErrorFromToken(err *KeyPair, token *TokenEntity, addon string) *ParserError {
 	msg := err.Value + addon
 	return &ParserError{
 		Id:      err.Key,

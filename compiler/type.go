@@ -1,4 +1,4 @@
-package tokenizer
+package compiler
 
 type TokenType uint
 
