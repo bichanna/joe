@@ -40,6 +40,11 @@ func NewTokenEntity(line, col uint, id TokenEntityID, tt TokenType, value string
 	}
 }
 
+// NewDefaultTokenEntity creates a new default (None) token entity.
+func NewDefaultTokenEntity(line, col uint, id TokenEntityID, value string) *TokenEntity {
+	return NewTokenEntity(line, col, id, None, value)
+}
+
 // GetID returns the TokenEntityID of the token entity.
 func (te *TokenEntity) GetID() TokenEntityID {
 	return te.id
