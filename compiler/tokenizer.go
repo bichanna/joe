@@ -278,7 +278,184 @@ func (t *Tokenizer) parse() {
 					 - 123.456E-3
 					 - 12345e5
 				*/
+				var (
+					dotFound       = false
+					eFound         = false
+					postESignFound = false
+					underscoreOk   = false
+					number         string
+				)
+
+				for !t.isEnd() {
+					if t.current() == '_' {
+						if !underscoreOk || t.peek(-1) == '.' {
+							t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalNumberFormat, t.line, t.col, ", unexpected or illegally placed underscore")
+							goto start
+						}
+						t.advance()
+					} else if t.current() == '.' {
+						number += string(t.current())
+						if dotFound {
+							t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalNumberFormat, t.line, t.col, ", double decimal")
+							goto start
+						}
+						dotFound = true
+						t.advance()
+						continue
+					} else if isMatch('e', t.current()) {
+						underscoreOk = false
+						number += string(t.current())
+						char := t.peek(1)
+
+						if t.peekEnd(1) {
+							t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalNumberFormat, t.line, t.col, ", missing exponent prefix")
+							goto start
+						} else if char != '+' && char != '-' && !isNumber(char) {
+							t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalNumberFormat, t.line, t.col, ", expected '+', '-', or a digit")
+							goto start
+						}
+						eFound = true
+						t.advance()
+						continue
+					} else if eFound && isSign(t.current()) {
+						number += string(t.current())
+						if postESignFound {
+							t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalNumberFormat, t.line, t.col, ", duplicate exponent sign postfix")
+							goto start
+						}
+						postESignFound = true
+						t.advance()
+						continue
+					} else if t.current() != '.' && isNumber(t.current()) {
+						break
+					} else {
+						if isNumber(t.current()) && !eFound {
+							underscoreOk = true
+						}
+						number += string(t.current())
+						t.advance()
+					}
+				}
+
+				t.entities = append(t.entities, NewDefaultTokenEntity(t.line, t.col, IntegerLiteral, number))
+				goto start
 			}
+		} else if t.current() == '"' { // start of a string literal
+			value := ""
+			if t.tokensLeft() < 2 {
+				t.errManager.CreateNewErrorWithLineAndCol(ErrExpectedStrLiteralEOF, t.line, t.col, "")
+				t.advance()
+				goto start
+			}
+			t.advance()
+
+			escaped := false
+			escapeFound := false
+
+			for !t.isEnd() {
+				if t.current() == '\n' {
+					t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalStrFormat, t.line, t.col, ", expected '\"' before end of line")
+					t.newLine()
+					goto start
+				} else if !escaped && t.current() == '\\' {
+					value += string(t.current())
+					escaped = true
+					escapeFound = true
+					t.advance()
+					continue
+				} else if !escaped {
+					if t.current() == '"' {
+						break
+					}
+					value += string(t.current())
+					escaped = false
+				}
+
+				t.advance()
+			}
+
+			if t.isEnd() {
+				t.errManager.CreateNewErrorWithLineAndCol(ErrUnexpectedEOF, t.line, t.col, "")
+				goto start
+			}
+
+			if !escapeFound {
+				t.entities = append(t.entities, NewDefaultTokenEntity(t.line, t.col, StringLiteral, value))
+			} else {
+				t.entities = append(t.entities, NewDefaultTokenEntity(t.line, t.col, StringLiteral, getEscapedStr(value)))
+			}
+
+			t.advance()
+			goto start
+		} else if t.current() == '\'' { // start of a char
+			var char string
+			if t.tokensLeft() < 2 {
+				t.errManager.CreateNewErrorWithLineAndCol(ErrExpectedCharLiteralEOF, t.line, t.col, "")
+				t.advance()
+				goto start
+			}
+			t.advance()
+
+			escaped := false
+			escapedFound := false
+			hasChar := false
+
+			for !t.isEnd() {
+				if !escaped && t.current() == '\\' {
+					if hasChar {
+						t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalCharFormat, t.line, t.col, ", a char literal cannot contain more than one character")
+						goto start
+					}
+					char += string(t.current())
+					escaped = true
+					escapedFound = true
+					t.advance()
+					continue
+				} else if !escaped {
+					if t.current() == '\\' {
+						break
+					}
+					if hasChar {
+						t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalCharFormat, t.line, t.col, ", a char literal cannot contain more than one character")
+						goto start
+					}
+
+					hasChar = true
+					char += string(t.current())
+				} else if escaped {
+					hasChar = true
+					if !isLetter(byte(unicode.ToLower(rune(t.current())))) && t.current() == '\\' {
+						t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalCharFormat, t.line, t.col, ", text preceding '\\' must be alphabetical")
+						goto start
+					}
+					char += string(t.current())
+					escaped = false
+				}
+				t.advance()
+			}
+
+			if t.isEnd() {
+				t.errManager.CreateNewErrorWithLineAndCol(ErrUnexpectedEOF, t.line, t.col, "")
+				goto start
+			}
+
+			if !escapedFound {
+				if char == "" {
+					t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalCharFormat, t.line, t.col, ", char literal cannot be empty")
+					goto start
+				} else {
+					t.entities = append(t.entities, NewDefaultTokenEntity(t.line, t.col, CharLiteral, char))
+				}
+			} else {
+				t.entities = append(t.entities, NewDefaultTokenEntity(t.line, t.col, CharLiteral, getEscapedStr(char)))
+			}
+
+			t.advance()
+			goto start
+		} else {
+			t.errManager.CreateNewErrorWithLineAndCol(ErrUnexpectedSymbol, t.line, t.col, ", '"+string(t.current())+"'")
+			t.advance()
+			goto start
 		}
 	}
 
@@ -303,10 +480,6 @@ func (t *Tokenizer) parseLines() {
 	}
 }
 
-func (t *Tokenizer) isMatch(i, current byte) bool {
-	return false
-}
-
 // Checks if the given character is a whitespace or not.
 func isWhitespace(c byte) bool {
 	return c == '\n' || c == ' ' || c == '\r' || c == '\t' || c == '\b' || c == '\f' || c == '\v'
@@ -318,16 +491,16 @@ func (t *Tokenizer) isEnd() bool {
 }
 
 // peekEnd checks if a jump forward for certain characters or not.
-func (t *Tokenizer) peekEnd(f uint) bool {
-	return (t.cursor + f) >= t.length
+func (t *Tokenizer) peekEnd(f int) bool {
+	return (int(t.cursor) + f) >= int(t.length)
 }
 
 // peek returns the character forward for certain characters.
-func (t *Tokenizer) peek(f uint) byte {
-	if t.peekEnd(f) || (t.cursor+f) < 0 {
+func (t *Tokenizer) peek(f int) byte {
+	if t.peekEnd(f) || (int(t.cursor)+f) < 0 {
 		return t.tokens[t.length-1]
 	} else {
-		return t.tokens[t.cursor+f]
+		return t.tokens[int(t.cursor)+f]
 	}
 }
 
@@ -410,4 +583,45 @@ func commentStart(char0, char1 byte, mode *uint) bool {
 // commentEnd checks if a comment is ending or not.
 func commentEnd(char0, char1 byte, mode *uint) bool {
 	return (*mode == 1 && char0 == '\n') || (*mode == 2 && char0 == '*' && char1 == '/')
+}
+
+// isMatch checks if two characters are the same or not regardless of capitalizing.
+func isMatch(expected, char byte) bool {
+	return unicode.ToLower(rune(expected)) == unicode.ToLower(rune(char))
+}
+
+// getEscapedStr formats the given string value to properly escaped string.
+func getEscapedStr(unescaped string) string {
+	value := ""
+	for i := 0; i < len(unescaped); i++ {
+		if value[i] == '\\' {
+			switch unescaped[i+1] {
+			case 'n':
+				value += string('\n')
+			case 't':
+				value += string('\t')
+			case 'b':
+				value += string('\b')
+			case 'v':
+				value += string('\v')
+			case 'r':
+				value += string('\r')
+			case 'f':
+				value += string('\f')
+			case 'a':
+				value += string('\a')
+			default:
+				value += string(value[i+1])
+			}
+		}
+	}
+	return value
+}
+
+func (t *Tokenizer) GetData() string {
+	return t.tokens
+}
+
+func (t *Tokenizer) GetErrors() *ErrorManager {
+	return t.errManager
 }
