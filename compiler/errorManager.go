@@ -106,13 +106,15 @@ type ErrorManager struct {
 // NewErrorManager creates a new ErrorManager with various flags.
 func NewErrorManager(lines []string, fileName string, asIs bool, aggresive bool) *ErrorManager {
 	return &ErrorManager{
-		lines:        lines,
-		fileName:     fileName,
-		asIs:         asIs,
-		aggresive:    aggresive,
-		teCurser:     0,
-		haveFoundErr: false,
-		cm:           false,
+		lines:            lines,
+		fileName:         fileName,
+		asIs:             asIs,
+		aggresive:        aggresive,
+		teCurser:         0,
+		haveFoundErr:     false,
+		cm:               false,
+		lastError:        &ParserError{},
+		lastCheckedError: &ParserError{},
 	}
 }
 
@@ -345,14 +347,14 @@ func (m *ErrorManager) removePossibleErrorList() {
 }
 
 // shouldReport checks if the given error should be reported or not.
-func (m *ErrorManager) shouldReport(token *TokenEntity, lastErr *ParserError, e *ParserError) bool {
-	if m.lastError.Error != e.Error && !m.hasError(&m.errors, e) && !(m.lastError.Line == e.Line && m.lastError.Col == e.Col) {
+func (m *ErrorManager) shouldReport(token *TokenEntity, lastError *ParserError, e *ParserError) bool {
+	if lastError.Error != e.Error && !m.hasError(&m.errors, e) && !(lastError.Line == e.Line && lastError.Col == e.Col) {
 		if token != nil &&
 			!(token.IsSingle() ||
 				token.GetID() == CharLiteral ||
 				token.GetID() == StringLiteral ||
 				token.GetID() == IntegerLiteral) {
-			return m.lastError.Line-e.Line != 1
+			return lastError.Line-e.Line != 1
 		}
 		return true
 	}
