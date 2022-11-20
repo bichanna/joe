@@ -33,10 +33,6 @@ func NewTokenizer(tokens string, fileName string) *Tokenizer {
 	return tokenizer
 }
 
-// Tokenize starts tokenizing.
-func (t *Tokenizer) Tokenize() {
-}
-
 // getEntityCount gets the length of the entity list.
 func (t *Tokenizer) getEntityCount() int {
 	return len(t.entities)
