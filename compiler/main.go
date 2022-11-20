@@ -36,7 +36,7 @@ func printErr(msg string) {
 	os.Exit(1)
 }
 
-func printVersion()
+func printVersion() {}
 
 func bootstrap() int {
 	if len(os.Args) < 2 {
@@ -115,3 +115,5 @@ func bootstrap() int {
 
 	return 0
 }
+
+func main() {}
