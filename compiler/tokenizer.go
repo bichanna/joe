@@ -34,12 +34,12 @@ func NewTokenizer(tokens string, fileName string) *Tokenizer {
 }
 
 // getEntityCount gets the length of the entity list.
-func (t *Tokenizer) getEntityCount() int {
+func (t *Tokenizer) GetEntityCount() int {
 	return len(t.entities)
 }
 
 // getEntites gets the list of token entities.
-func (t *Tokenizer) getEntites() *[]*TokenEntity {
+func (t *Tokenizer) GetEntites() *[]*TokenEntity {
 	return &t.entities
 }
 
@@ -62,51 +62,51 @@ func (t *Tokenizer) parse() {
 	t.parseLines()
 
 	t.errManager = NewErrorManager(t.lines, t.fileName, false, COptionsAggressiveErrorReporting)
-	t.EOFToken = NewTokenEntity(uint(len(t.lines)), 0, Single, EOF, "")
+	t.EOFToken = NewTokenEntity(uint(len(t.lines)), 0, Single, EOF, "EOF")
 
 	for {
 	start:
 	invalidate_whitespace:
+		// check for comments
 		for !t.isEnd() && isWhitespace(t.current()) {
 			if t.current() == '\n' {
 				t.newLine()
 			}
 			t.advance()
+		}
+		// check if there's any comments
+		// mode == 1 -> one-line comment
+		// mode == 2 -> multi-line comment
+		// mode == 0 -> no comment
+		var mode uint = 0
+		if t.isEnd() || t.peekEnd(1) {
+			goto scan
+		} else if !commentStart(t.current(), t.peek(1), &mode) {
+			goto scan
+		}
+		t.col += 2
+		t.cursor += 2
 
-			// check if there's any comments
-			// mode == 1 -> one-line comment
-			// mode == 2 -> multi-line comment
-			// mode == 0 -> no comment
-			var mode uint = 0
-			if t.isEnd() || t.peekEnd(1) {
-				goto scan
-			} else if !commentStart(t.current(), t.peek(1), &mode) {
-				goto scan
-			}
-			t.col += 2
-			t.cursor += 2
-
-			for !t.isEnd() && !commentEnd(t.current(), t.peek(1), &mode) {
-				if t.current() == '\n' {
-					t.newLine()
-				}
-				t.advance()
-			}
-
+		for !t.isEnd() && !commentEnd(t.current(), t.peek(1), &mode) {
 			if t.current() == '\n' {
 				t.newLine()
 			}
-
-			if !t.isEnd() {
-				t.cursor += mode
-				goto invalidate_whitespace
-			} else if t.isEnd() && !commentEnd(t.current(), t.peek(1), &mode) {
-				t.errManager.CreateNewErrorWithLineAndCol(ErrGeneric, t.line, t.col, "unterminated block comment")
-			}
-
+			t.advance()
 		}
-	scan:
+
+		if t.current() == '\n' {
+			t.newLine()
+		}
+
 		if !t.isEnd() {
+			t.cursor += mode
+			goto invalidate_whitespace
+		} else if t.isEnd() && !commentEnd(t.current(), t.peek(1), &mode) {
+			t.errManager.CreateNewErrorWithLineAndCol(ErrGeneric, t.line, t.col, "unterminated block comment")
+		}
+
+	scan:
+		if t.isEnd() {
 			goto end
 		} else if t.isSymbol(t.current()) {
 			if !t.peekEnd(1) { // two symbols: /=, +=, --, etc.
@@ -220,7 +220,7 @@ func (t *Tokenizer) parse() {
 			variable := ""
 			hasLetter := false
 
-			for !t.isEnd() && (isLetter(t.current()) && isNumber(t.current()) || t.current() == '_') {
+			for !t.isEnd() && (isLetter(t.current()) || isNumber(t.current()) || t.current() == '_') {
 				if isLetter(t.current()) {
 					hasLetter = true
 				}
@@ -290,6 +290,9 @@ func (t *Tokenizer) parse() {
 						}
 						t.advance()
 					} else if t.current() == '.' {
+						if !isNumber(t.peek(1)) {
+							break
+						}
 						number += string(t.current())
 						if dotFound {
 							t.errManager.CreateNewErrorWithLineAndCol(ErrIllegalNumberFormat, t.line, t.col, ", double decimal")
@@ -322,7 +325,7 @@ func (t *Tokenizer) parse() {
 						postESignFound = true
 						t.advance()
 						continue
-					} else if t.current() != '.' && isNumber(t.current()) {
+					} else if t.current() != '.' && !isNumber(t.current()) {
 						break
 					} else {
 						if isNumber(t.current()) && !eFound {
