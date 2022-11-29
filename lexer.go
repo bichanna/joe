@@ -6,22 +6,24 @@ import (
 )
 
 type Lexer struct {
-	source   []rune
-	index    int
-	filename string
-	line     int
-	col      int
-	tokens   []*Token
+	source     []rune
+	index      int
+	filename   string
+	line       int
+	col        int
+	tokens     []*Token
+	errManager *ErrorManager
 }
 
 // newLexer creates a new lexer and returns it.
-func newLexer(sourceStr string, filename string) *Lexer {
+func newLexer(sourceStr string, filename string, aggressive bool) *Lexer {
 	return &Lexer{
-		source:   []rune(sourceStr),
-		index:    0,
-		filename: filename,
-		line:     1,
-		col:      0,
+		source:     []rune(sourceStr),
+		index:      0,
+		filename:   filename,
+		line:       1,
+		col:        0,
+		errManager: newErrorManager(filename, aggressive),
 	}
 }
 
@@ -107,7 +109,6 @@ func (l *Lexer) readIdentifier() []rune {
 	identifier := []rune{}
 	for {
 		if l.isEOF() {
-			// TODO: report error
 			break
 		}
 
@@ -123,13 +124,12 @@ func (l *Lexer) readIdentifier() []rune {
 	return identifier
 }
 
-// readNumeral reads a numeral and returns the number and whether it is a floting point number or not.
+// readNumeral reads a numeral and returns the number and whether it is a floating point number or not.
 func (l *Lexer) readNumeral() ([]rune, bool) {
 	sawDot := false
 	number := []rune{}
 	for {
 		if l.isEOF() {
-			// TODO: report error
 			break
 		}
 
@@ -140,7 +140,8 @@ func (l *Lexer) readNumeral() ([]rune, bool) {
 			sawDot = true
 			number = append(number, c)
 		} else if c == '.' && sawDot {
-			// TODO: report error
+			l.errManager.newErrorWithPosition(l.currentPos(), "invalid floating point number format")
+			break
 		} else {
 			l.back()
 			break
@@ -157,7 +158,8 @@ func (l *Lexer) readString() []rune {
 		if char == '\\' {
 			value = append(value, char)
 			if l.isEOF() {
-				// TODO: report error
+				l.errManager.newErrorWithPosition(l.currentPos(), "string literal not enclosed with '\"'")
+				break
 			} else {
 				char = l.next()
 			}
@@ -220,7 +222,7 @@ func (l *Lexer) tokenizeNextToken() {
 		}
 	case '!':
 		if l.peekAhead(1) != '=' {
-			// TODO: report error
+			l.errManager.newErrorWithPosition(l.currentPos(), "expected '='")
 			l.addToken(newDefaultToken(unknown, *l.currentPos()))
 		} else {
 			pos := *l.currentPos()
