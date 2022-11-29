@@ -1,2 +1,2 @@
 # Joe
-A statically-typed language with a bytecode VM
+A programming language with a bytecode VM
