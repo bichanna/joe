@@ -26,15 +26,25 @@ type ParseError struct {
 	col  int
 }
 
-// newErrorWithToken creates a new ParseError from a token.
-func (m *ErrorManager) newErrorWithToken(token *Token, msg string) {
+// newError creates a new ParseError with given line and column numbers.
+func (m *ErrorManager) newError(line, col int, msg string) {
 	err := &ParseError{
-		msg:  msg,
-		line: token.pos.line,
-		col:  token.pos.col,
+		msg: msg,
+		line: line,
+		col: col,
 	}
 
 	m.unfiltered = append(m.unfiltered, err)
+}
+
+// newErrorWithPosition creates a new ParseError with the given Position.
+func (m *ErrorManager) newErrorWithPosition(pos *Position, msg string) {
+	m.newError(pos.line, pos.col, msg)
+}
+
+// newErrorWithToken creates a new ParseError from a token.
+func (m *ErrorManager) newErrorWithToken(token *Token, msg string) {
+	m.newError(token.pos.line, token.pos.col, msg)
 }
 
 // formatError formats a ParseError.
@@ -58,7 +68,7 @@ func (m *ErrorManager) stringifyErrors() string {
 		errors = m.filtered
 		builder.WriteString("enabled\n")
 	}
-	
+
 	// concatenate all the errors
 	for _, err := range errors {
 		builder.WriteString(m.formatError(err))
