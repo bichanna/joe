@@ -19,6 +19,22 @@ type Token struct {
 	payload []rune
 }
 
+// newToken creates a new token.
+func newToken(kind tokenType, pos Position, payload []rune) *Token {
+	return &Token{
+		kind:    kind,
+		pos:     pos,
+		payload: payload,
+	}
+}
+
+func newDefaultToken(kind tokenType, pos Position) *Token {
+	return &Token{
+		kind: kind,
+		pos:  pos,
+	}
+}
+
 type tokenType uint8
 
 const (
@@ -61,6 +77,7 @@ const (
 	blockKW
 	structKW
 	asyncKW
+	awaitKW
 
 	// literals
 	trueLiteral
@@ -69,5 +86,6 @@ const (
 	strLiteral
 	intLiteral
 	doubleLiteral
-	charLiteral
+
+	EOF
 )
