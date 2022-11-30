@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 )
 
@@ -97,16 +98,16 @@ func (l *Lexer) back() {
 
 // readUntil reads characters until encountering char.
 func (l *Lexer) readUntil(char rune) []rune {
-	value := []rune{}
+	value := strings.Builder{}
 	for !l.isEOF() && l.peek() != char {
-		value = append(value, l.next())
+		value.WriteRune(l.next())
 	}
-	return value
+	return []rune(value.String())
 }
 
 // readIdentifier reads an identifier and returns it.
 func (l *Lexer) readIdentifier() []rune {
-	identifier := []rune{}
+	identifier := strings.Builder{}
 	for {
 		if l.isEOF() {
 			break
@@ -114,20 +115,20 @@ func (l *Lexer) readIdentifier() []rune {
 
 		c := l.next()
 		if unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '?' || c == '!' {
-			identifier = append(identifier, c)
+			identifier.WriteRune(c)
 		} else {
 			l.back()
 			break
 		}
 	}
 
-	return identifier
+	return []rune(identifier.String())
 }
 
 // readNumeral reads a numeral and returns the number and whether it is a floating point number or not.
 func (l *Lexer) readNumeral() ([]rune, bool) {
 	sawDot := false
-	number := []rune{}
+	number := strings.Builder{}
 	for {
 		if l.isEOF() {
 			break
@@ -135,10 +136,10 @@ func (l *Lexer) readNumeral() ([]rune, bool) {
 
 		c := l.next()
 		if unicode.IsDigit(c) {
-			number = append(number, c)
+			number.WriteRune(c)
 		} else if c == '.' && !sawDot {
 			sawDot = true
-			number = append(number, c)
+			number.WriteRune(c)
 		} else if c == '.' && sawDot {
 			l.errManager.newErrorWithPosition(l.currentPos(), "invalid floating point number format")
 			break
@@ -147,16 +148,16 @@ func (l *Lexer) readNumeral() ([]rune, bool) {
 			break
 		}
 	}
-	return number, sawDot
+	return []rune(number.String()), sawDot
 }
 
 // readString reads a string and returns the value.
 func (l *Lexer) readString() []rune {
-	value := []rune{}
+	value := strings.Builder{}
 	for !l.isEOF() && l.peek() != '\'' && l.peek() != '"' {
 		char := l.next()
 		if char == '\\' {
-			value = append(value, char)
+			value.WriteRune(char)
 			if l.isEOF() {
 				l.errManager.newErrorWithPosition(l.currentPos(), "string literal not enclosed with '\"'")
 				break
@@ -164,13 +165,13 @@ func (l *Lexer) readString() []rune {
 				char = l.next()
 			}
 		}
-		value = append(value, char)
+		value.WriteRune(char)
 	}
 
 	// read the ending quote
 	l.next()
 
-	return value
+	return []rune(value.String())
 }
 
 // tokenizeNextToken tokenize a token.
