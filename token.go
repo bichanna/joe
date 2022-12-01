@@ -35,6 +35,80 @@ func newDefaultToken(kind tokenType, pos Position) *Token {
 	}
 }
 
+// String stringifies the token.
+func (t *Token) String() string {
+	if t.kind == identifier {
+		return t.payload
+	} else {
+		switch t.kind {
+		case plus:
+			return "+"
+		case minus:
+			return "-"
+		case times:
+			return "*"
+		case div:
+			return "/"
+		case mod:
+			return "%"
+		case greater:
+			return ">"
+		case less:
+			return "<"
+		case eq:
+			return "="
+		case geq:
+			return ">="
+		case leq:
+			return "<="
+		case neq:
+			return "!="
+		case and:
+			return "&&"
+		case or:
+			return "||"
+		case not:
+			return "!"
+		case ifKW:
+			return "if"
+		case whileKW:
+			return "while"
+		case forKW:
+			return "for"
+		case mutKW:
+			return "mut"
+		case letKW:
+			return "let"
+		case setKW:
+			return "set"
+		case mapKW:
+			return "map"
+		case listKW:
+			return "list"
+		case defineKW:
+			return "def"
+		case lambdaKW:
+			return "lambda"
+		case blockKW:
+			return "block"
+		case structKW:
+			return "struct"
+		case asyncKW:
+			return "async"
+		case awaitKW:
+			return "await"
+		case trueLiteral:
+			return "true"
+		case falseLiteral:
+			return "false"
+		case nilLiteral:
+			return "nil"
+		default:
+			return "UNKNOWN"
+		}
+	}
+}
+
 type tokenType uint8
 
 const (
@@ -72,6 +146,7 @@ const (
 	letKW
 	setKW
 	mapKW
+	listKW
 	defineKW
 	lambdaKW
 	blockKW

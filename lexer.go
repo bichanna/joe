@@ -288,6 +288,8 @@ func (l *Lexer) tokenizeNextToken() {
 			l.addToken(newDefaultToken(setKW, *pos))
 		case "map":
 			l.addToken(newDefaultToken(mapKW, *pos))
+		case "list":
+			l.addToken(newDefaultToken(listKW, *pos))
 		case "def":
 			l.addToken(newDefaultToken(defineKW, *pos))
 		case "lambda":
