@@ -29,9 +29,9 @@ type ParseError struct {
 // newError creates a new ParseError with given line and column numbers.
 func (m *ErrorManager) newError(line, col int, msg string) {
 	err := &ParseError{
-		msg: msg,
+		msg:  msg,
 		line: line,
-		col: col,
+		col:  col,
 	}
 
 	m.unfiltered = append(m.unfiltered, err)

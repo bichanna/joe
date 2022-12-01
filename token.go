@@ -16,11 +16,11 @@ func (p *Position) String() string {
 type Token struct {
 	kind    tokenType
 	pos     Position
-	payload []rune
+	payload string
 }
 
 // newToken creates a new token.
-func newToken(kind tokenType, pos Position, payload []rune) *Token {
+func newToken(kind tokenType, pos Position, payload string) *Token {
 	return &Token{
 		kind:    kind,
 		pos:     pos,

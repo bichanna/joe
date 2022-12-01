@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 )
 
 type Lexer struct {
-	source     []rune
+	source     string
 	index      int
 	filename   string
 	line       int
@@ -19,7 +18,7 @@ type Lexer struct {
 // newLexer creates a new lexer and returns it.
 func newLexer(sourceStr string, filename string, aggressive bool) *Lexer {
 	return &Lexer{
-		source:     []rune(sourceStr),
+		source:     sourceStr,
 		index:      0,
 		filename:   filename,
 		line:       1,
@@ -49,7 +48,7 @@ func (l *Lexer) isEOF() bool {
 
 // peek returns the current character.
 func (l *Lexer) peek() rune {
-	return l.source[l.index]
+	return rune(l.source[l.index])
 }
 
 // peekAhead returns the character at n characters ahead.
@@ -57,7 +56,7 @@ func (l *Lexer) peekAhead(n int) rune {
 	if l.index+n >= len(l.source) {
 		return ' '
 	}
-	return l.source[l.index+n]
+	return rune(l.source[l.index+n])
 }
 
 // next returns the current character and moves the index one ahead.
@@ -75,7 +74,7 @@ func (l *Lexer) next() rune {
 		l.col++
 	}
 
-	return char
+	return rune(char)
 }
 
 // back moves the index back one.
@@ -97,16 +96,16 @@ func (l *Lexer) back() {
 }
 
 // readUntil reads characters until encountering char.
-func (l *Lexer) readUntil(char rune) []rune {
+func (l *Lexer) readUntil(char rune) string {
 	value := strings.Builder{}
 	for !l.isEOF() && l.peek() != char {
 		value.WriteRune(l.next())
 	}
-	return []rune(value.String())
+	return value.String()
 }
 
 // readIdentifier reads an identifier and returns it.
-func (l *Lexer) readIdentifier() []rune {
+func (l *Lexer) readIdentifier() string {
 	identifier := strings.Builder{}
 	for {
 		if l.isEOF() {
@@ -114,7 +113,7 @@ func (l *Lexer) readIdentifier() []rune {
 		}
 
 		c := l.next()
-		if unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '?' || c == '!' {
+		if unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '?' || c == '!' || c == '-' {
 			identifier.WriteRune(c)
 		} else {
 			l.back()
@@ -122,11 +121,11 @@ func (l *Lexer) readIdentifier() []rune {
 		}
 	}
 
-	return []rune(identifier.String())
+	return identifier.String()
 }
 
 // readNumeral reads a numeral and returns the number and whether it is a floating point number or not.
-func (l *Lexer) readNumeral() ([]rune, bool) {
+func (l *Lexer) readNumeral() (string, bool) {
 	sawDot := false
 	number := strings.Builder{}
 	for {
@@ -148,21 +147,38 @@ func (l *Lexer) readNumeral() ([]rune, bool) {
 			break
 		}
 	}
-	return []rune(number.String()), sawDot
+	return number.String(), sawDot
 }
 
 // readString reads a string and returns the value.
-func (l *Lexer) readString() []rune {
+func (l *Lexer) readString() string {
+	l.next()
 	value := strings.Builder{}
 	for !l.isEOF() && l.peek() != '\'' && l.peek() != '"' {
 		char := l.next()
 		if char == '\\' {
-			value.WriteRune(char)
 			if l.isEOF() {
 				l.errManager.newErrorWithPosition(l.currentPos(), "string literal not enclosed with '\"'")
 				break
 			} else {
 				char = l.next()
+				switch char {
+				case 'a':
+					value.WriteRune('\a')
+				case 'b':
+					value.WriteRune('\b')
+				case 'r':
+					value.WriteRune('\r')
+				case '\\':
+					value.WriteRune('\\')
+				case 't':
+					value.WriteRune('\t')
+				case 'n':
+					value.WriteRune('\n')
+				default:
+					value.WriteRune(char)
+				}
+				continue
 			}
 		}
 		value.WriteRune(char)
@@ -171,7 +187,7 @@ func (l *Lexer) readString() []rune {
 	// read the ending quote
 	l.next()
 
-	return []rune(value.String())
+	return value.String()
 }
 
 // tokenizeNextToken tokenize a token.
@@ -179,8 +195,13 @@ func (l *Lexer) tokenizeNextToken() {
 	char := l.next()
 
 	switch char {
-	case ' ':
+	case ' ', '\t', '\n':
 		// do nothing
+		break
+	case '#':
+		l.readUntil('\n')
+		// do nothing
+		break
 	case '(':
 		l.addToken(newDefaultToken(leftParen, *l.currentPos()))
 	case ')':
@@ -237,6 +258,7 @@ func (l *Lexer) tokenizeNextToken() {
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		pos := l.currentPos()
 		number, isDouble := l.readNumeral()
+		number = string(char) + number
 		if !isDouble {
 			l.addToken(newToken(intLiteral, *pos, number))
 		} else {
@@ -244,7 +266,7 @@ func (l *Lexer) tokenizeNextToken() {
 		}
 	default:
 		pos := l.currentPos()
-		payload := fmt.Sprintf("%U%U", char, l.readIdentifier())
+		payload := string(char) + l.readIdentifier()
 		switch payload {
 		case "and":
 			l.addToken(newDefaultToken(and, *pos))
@@ -285,7 +307,7 @@ func (l *Lexer) tokenizeNextToken() {
 		case "nil":
 			l.addToken(newDefaultToken(nilLiteral, *pos))
 		default:
-			l.addToken(newToken(identifier, *pos, []rune(payload)))
+			l.addToken(newToken(identifier, *pos, payload))
 		}
 	}
 }
